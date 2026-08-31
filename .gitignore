@@ -1,8 +1,8 @@
+# Third-party installed packages (reconstructed automatically via npm install)
 node_modules/
-build/
-dist/
-coverage/
-.DS_Store
+
+# Logs & Environment
 *.log
-.env*
-!.env.example
+.env
+.DS_Store
+coverage/
