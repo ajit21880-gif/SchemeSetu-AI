@@ -3356,15 +3356,8 @@ app.post("/api/whatsapp-webhook", async (req, res) => {
       replyText += idx + 1 + ". *" + item.scheme.name.en + "*\n   \u2022 Benefit: \u20B9" + item.scheme.benefit.amountINR.toLocaleString("en-IN") + "\n";
     });
     replyText += "\n\u{1F310} *View Full Dossier & Apply Online*:\nhttp://localhost:3006\n\n_100% Free Public Interest Welfare Service_";
-    if (body.AccountSid || body.From || body.MediaUrl0 || body.SmsSid) {
-      res.set("Content-Type", "text/xml");
-      return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response><Message>' + replyText + "</Message></Response>");
-    }
-    return res.status(200).json({
-      success: true,
-      recipient: fromNumber,
-      messageText: replyText
-    });
+    res.set("Content-Type", "text/xml");
+    return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response><Message>' + replyText + "</Message></Response>");
   } catch (error) {
     console.error("Error handling WhatsApp webhook:", error);
     const fallbackText = "\u{1F3DB}\uFE0F *SchemeSetu AI*\nDocument received! Verified for Government Welfare Schemes.\nView Dossier: http://localhost:3006";

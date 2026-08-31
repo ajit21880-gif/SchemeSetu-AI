@@ -565,17 +565,9 @@ app.post('/api/whatsapp-webhook', async (req, res) => {
 
     replyText += '\n🌐 *View Full Dossier & Apply Online*:\nhttp://localhost:3006\n\n_100% Free Public Interest Welfare Service_';
 
-    // Twilio Response format (XML TwiML)
-    if (body.AccountSid || body.From || body.MediaUrl0 || body.SmsSid) {
-      res.set('Content-Type', 'text/xml');
-      return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response><Message>' + replyText + '</Message></Response>');
-    }
-
-    return res.status(200).json({
-      success: true,
-      recipient: fromNumber,
-      messageText: replyText,
-    });
+    // Twilio Response format (XML TwiML) - Always return text/xml for Twilio Webhooks
+    res.set('Content-Type', 'text/xml');
+    return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response><Message>' + replyText + '</Message></Response>');
   } catch (error) {
     console.error('Error handling WhatsApp webhook:', error);
     const fallbackText = '🏛️ *SchemeSetu AI*\nDocument received! Verified for Government Welfare Schemes.\nView Dossier: http://localhost:3006';
