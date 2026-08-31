@@ -63,7 +63,17 @@ export default function App() {
     };
   }, [currentLanguage]);
 
-  // Regional Speech Synthesis Handler
+  // Pre-load Web Speech voices
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
+
+  // Regional Speech Synthesis Handler (Hindi, Marathi, English)
   const speakText = useCallback(
     (textToSpeak: string) => {
       if (!('speechSynthesis' in window)) {
@@ -81,21 +91,31 @@ export default function App() {
 
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
 
-      // Select matching voice for language
+      // Select exact regional voice for Hindi / Marathi / English
       const voices = window.speechSynthesis.getVoices();
       if (currentLanguage === 'hi') {
         utterance.lang = 'hi-IN';
-        const hiVoice = voices.find((v) => v.lang.includes('hi') || v.lang.includes('IN'));
+        const hiVoice = voices.find((v) =>
+          v.lang.toLowerCase().startsWith('hi') ||
+          v.name.toLowerCase().includes('hindi') ||
+          v.name.toLowerCase().includes('kalpana')
+        );
         if (hiVoice) utterance.voice = hiVoice;
       } else if (currentLanguage === 'mr') {
         utterance.lang = 'mr-IN';
-        const mrVoice = voices.find((v) => v.lang.includes('mr') || v.lang.includes('hi'));
+        const mrVoice = voices.find((v) =>
+          v.lang.toLowerCase().startsWith('mr') ||
+          v.name.toLowerCase().includes('marathi') ||
+          v.lang.toLowerCase().startsWith('hi')
+        );
         if (mrVoice) utterance.voice = mrVoice;
       } else {
         utterance.lang = 'en-IN';
+        const enVoice = voices.find((v) => v.lang.toLowerCase().startsWith('en'));
+        if (enVoice) utterance.voice = enVoice;
       }
 
-      utterance.rate = 0.95;
+      utterance.rate = 0.90;
       utterance.pitch = 1.0;
 
       utterance.onstart = () => {

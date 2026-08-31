@@ -149,9 +149,32 @@ export const SchemeCard: React.FC<SchemeCardProps> = ({
         {/* Scheme Title & Financial Benefit Highlight */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
           <div className="flex-1">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-950 tracking-tight leading-snug">
-              {schemeName}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight">
+                {schemeName}
+              </h3>
+              {onReadSchemeAloud && (
+                <button
+                  onClick={() => {
+                    const textToSpeak = currentLanguage === 'hi'
+                      ? `${schemeName}। ${tagline}। लाभ: ${benefitDesc}`
+                      : currentLanguage === 'mr'
+                      ? `${schemeName}. ${tagline}. फायदा: ${benefitDesc}`
+                      : `${schemeName}. ${tagline}. Benefit: ${benefitDesc}`;
+                    onReadSchemeAloud(textToSpeak);
+                  }}
+                  className={`p-1.5 rounded-lg border text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                    isReadingCurrent
+                      ? 'bg-amber-100 border-amber-300 text-amber-900 animate-pulse'
+                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                  }`}
+                  title="Listen in Regional Voice"
+                >
+                  <Volume2 className="w-3.5 h-3.5 text-orange-600" />
+                  <span className="text-[11px] font-bold text-slate-700">Listen</span>
+                </button>
+              )}
+            </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               {departmentName}
             </p>
