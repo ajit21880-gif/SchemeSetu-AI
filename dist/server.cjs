@@ -3109,7 +3109,7 @@ Perform complete high-precision OCR on regional text and extract the structured 
 
 Return strictly JSON conforming to the schema.`;
     const timeoutPromise = new Promise(
-      (_, reject) => setTimeout(() => reject(new Error("Gemini API request timed out")), 5e3)
+      (_, reject) => setTimeout(() => reject(new Error("Gemini API request timed out")), 1200)
     );
     const geminiResponse = await Promise.race([
       ai.models.generateContent({

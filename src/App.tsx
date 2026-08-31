@@ -342,11 +342,11 @@ export default function App() {
     };
   }, []);
 
-  // Scan file upload handler (with fast 3s max timeout)
+  // Scan file upload handler (with fast 1.5s max timeout)
   const handleScanFile = async (file: File) => {
     setIsScanning(true);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout for fast response
+    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout for instant response
 
     try {
       const reader = new FileReader();
