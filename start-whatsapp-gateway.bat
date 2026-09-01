@@ -15,6 +15,11 @@ if not exist "node_modules\whatsapp-web.js" (
     call npm install whatsapp-web.js qrcode-terminal
 )
 
+if exist ".wwebjs_auth\session\Default\Preferences" (
+    echo [INFO] Cleaning transient Chrome cache lock files...
+    del /s /q ".wwebjs_auth\session\Default\Cache\*" >nul 2>&1
+)
+
 call npx tsx whatsappGateway.ts
 
 pause
