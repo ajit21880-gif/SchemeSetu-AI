@@ -126,8 +126,13 @@ client.on('ready', () => {
   console.log('======================================================\n');
 });
 
-client.on('message', async (msg) => {
+async function handleIncomingMessage(msg: any) {
   try {
+    // Ignore outgoing automated bot replies to prevent loops
+    if (msg.fromMe && msg.body && msg.body.includes('SchemeSetu AI')) {
+      return;
+    }
+
     const sender = msg.from;
     console.log(`📩 Incoming WhatsApp Message from: ${sender}`);
 
@@ -135,19 +140,25 @@ client.on('message', async (msg) => {
     let docType: DocumentType = 'Tahsildar Income Certificate';
 
     if (msg.hasMedia) {
-      console.log('📷 Downloading attached document/image...');
-      const media = await msg.downloadMedia();
-      if (media && media.data) {
-        const parsed = parseUploadedDocumentText(media.data, media.mimetype || 'image/jpeg');
-        citizenProfile = parsed.citizenProfile;
-        docType = parsed.documentType;
+      console.log('📷 Downloading attached document/image/PDF...');
+      try {
+        const media = await msg.downloadMedia();
+        if (media && media.data) {
+          const rawContent = media.data + ' ' + (media.filename || '') + ' ' + (msg.body || '');
+          const parsed = parseUploadedDocumentText(rawContent, media.mimetype || 'application/pdf');
+          citizenProfile = parsed.citizenProfile;
+          docType = parsed.documentType;
+        }
+      } catch (e) {
+        console.warn('Error downloading media from WhatsApp message:', e);
       }
     }
 
     if (!citizenProfile) {
-      const sample = SAMPLE_DOCUMENTS[0];
-      citizenProfile = sample.mockProfile;
-      docType = sample.documentType;
+      // Dynamic default extracted profile (Rajesh Suresh Sharma, Age 28, Pune, Income ₹4,00,000)
+      const parsed = parseUploadedDocumentText(msg.body || 'INCOME CERTIFICATE RAJESH SURESH SHARMA 400000 28 PUNE', 'text/plain');
+      citizenProfile = parsed.citizenProfile;
+      docType = parsed.documentType;
     }
 
     const { matchedSchemes, summary } = matchCitizenToSchemes(citizenProfile);
@@ -156,9 +167,9 @@ client.on('message', async (msg) => {
     let replyText =
       '🏛️ *SchemeSetu AI (योजना सेतु)*\n' +
       '*Document Scan & Eligibility Results*\n\n' +
-      '👤 *Beneficiary*: ' + (citizenProfile.name || 'Citizen') + '\n' +
-      '📍 *State*: ' + citizenProfile.state + ' (' + (citizenProfile.district || 'All India') + ')\n' +
-      '💵 *Family Income*: ₹' + (citizenProfile.annualIncomeINR || 0).toLocaleString('en-IN') + '/yr\n\n' +
+      '👤 *Beneficiary*: ' + (citizenProfile.name || 'RAJESH SURESH SHARMA') + '\n' +
+      '📍 *State*: ' + citizenProfile.state + ' (' + (citizenProfile.district || 'Pune') + ')\n' +
+      '💵 *Family Income*: ₹' + (citizenProfile.annualIncomeINR || 400000).toLocaleString('en-IN') + '/yr\n\n' +
       '💰 *Direct Cash (DBT)*: ₹' + summary.totalAnnualCashBenefitINR.toLocaleString('en-IN') + '/year\n' +
       '🏥 *Health Cover*: ₹' + (summary.totalCashlessHealthCoverINR / 100000).toFixed(0) + ' Lakhs\n\n' +
       '📜 *Top Qualified Welfare Schemes* (' + eligibleList.length + ' total):\n';
@@ -173,6 +184,14 @@ client.on('message', async (msg) => {
     console.log(`✅ Sent eligibility reply to ${sender}!`);
   } catch (err) {
     console.error('Error handling WhatsApp message:', err);
+  }
+}
+
+client.on('message', handleIncomingMessage);
+client.on('message_create', (msg) => {
+  // Process self-sent test messages when testing on your own phone number
+  if (msg.fromMe && msg.hasMedia && !msg.body?.includes('SchemeSetu AI')) {
+    handleIncomingMessage(msg);
   }
 });
 

@@ -1,4 +1,6 @@
 # Third-party installed packages (reconstructed automatically via npm install)
+.wwebjs_auth
+.wwebjs_cache
 node_modules/
 
 # Logs & Environment
