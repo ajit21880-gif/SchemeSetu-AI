@@ -3331,7 +3331,13 @@ app.post("/api/whatsapp-webhook", async (req, res) => {
     let scanResult;
     if (imageUrl && imageUrl.startsWith("http")) {
       try {
-        const imageFetch = await fetch(imageUrl);
+        const fetchHeaders = {};
+        const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+        const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+        if (twilioSid && twilioToken) {
+          fetchHeaders["Authorization"] = "Basic " + Buffer.from(`${twilioSid}:${twilioToken}`).toString("base64");
+        }
+        const imageFetch = await fetch(imageUrl, { headers: fetchHeaders });
         if (imageFetch.ok) {
           const arrayBuffer = await imageFetch.arrayBuffer();
           const base64Image = Buffer.from(arrayBuffer).toString("base64");
