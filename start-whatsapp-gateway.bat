@@ -10,9 +10,9 @@ echo.
 echo Initializing WhatsApp Web QR Gateway...
 echo.
 
-if not exist "node_modules\" (
-    echo [INFO] node_modules not found. Installing WhatsApp dependencies...
-    call npm install
+if not exist "node_modules\whatsapp-web.js" (
+    echo [INFO] whatsapp-web.js dependency not found. Installing...
+    call npm install whatsapp-web.js qrcode-terminal
 )
 
 call npx tsx whatsappGateway.ts
