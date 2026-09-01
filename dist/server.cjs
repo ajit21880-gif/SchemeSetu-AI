@@ -3357,7 +3357,7 @@ app.post("/api/whatsapp-webhook", async (req, res) => {
     }
     const { citizenProfile, matchedSchemes, summary } = scanResult;
     const eligibleList = matchedSchemes.filter((m) => m.status === "ELIGIBLE");
-    const provisionalList = matchedSchemes.filter((m) => m.status === "NEEDS_DOCUMENTS");
+    const provisionalList = matchedSchemes.filter((m) => m.status === "PARTIALLY_ELIGIBLE");
     let replyText = "\u{1F3DB}\uFE0F *SchemeSetu AI (\u092F\u094B\u091C\u0928\u093E \u0938\u0947\u0924\u0941)*\n*Document Scan & Eligibility Results*\n\n\u{1F464} *Beneficiary*: " + (citizenProfile.name || "RAJESH SURESH SHARMA") + "\n\u{1F4CD} *State*: " + citizenProfile.state + " (" + (citizenProfile.district || "Pune") + ")\n\u{1F4B5} *Family Income*: \u20B9" + (citizenProfile.annualIncomeINR || 4e5).toLocaleString("en-IN") + "/yr\n\n\u{1F4B0} *Direct Cash (DBT)*: \u20B9" + summary.totalAnnualCashBenefitINR.toLocaleString("en-IN") + "/year\n\u{1F3E5} *Health Cover*: \u20B9" + (summary.totalCashlessHealthCoverINR / 1e5).toFixed(0) + " Lakhs\n\u{1F381} *Grants & Subsidies*: \u20B9" + (summary.totalSubsidiesGrantINR || 65e3).toLocaleString("en-IN") + "\n\n\u{1F4DC} *Qualified Schemes Breakdown*:\n\u2022 Fully Eligible (Immediate): " + eligibleList.length + "\n\u2022 Qualified (Needs 1-2 Extra Docs): " + provisionalList.length + "\n\n\u{1F31F} *Top Schemes You Qualify For*:\n";
     const combinedList = [...eligibleList, ...provisionalList];
     combinedList.slice(0, 4).forEach((item, idx) => {

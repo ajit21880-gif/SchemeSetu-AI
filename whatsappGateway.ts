@@ -188,7 +188,7 @@ async function handleIncomingMessage(msg: any) {
 
     const { matchedSchemes, summary } = matchCitizenToSchemes(citizenProfile);
     const eligibleList = matchedSchemes.filter((m) => m.status === 'ELIGIBLE');
-    const provisionalList = matchedSchemes.filter((m) => m.status === 'NEEDS_DOCUMENTS');
+    const provisionalList = matchedSchemes.filter((m) => m.status === 'PARTIALLY_ELIGIBLE');
 
     let replyText =
       '🏛️ *SchemeSetu AI (योजना सेतु)*\n' +

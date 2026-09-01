@@ -555,7 +555,7 @@ app.post('/api/whatsapp-webhook', async (req, res) => {
 
     const { citizenProfile, matchedSchemes, summary } = scanResult;
     const eligibleList = matchedSchemes.filter((m: any) => m.status === 'ELIGIBLE');
-    const provisionalList = matchedSchemes.filter((m: any) => m.status === 'NEEDS_DOCUMENTS');
+    const provisionalList = matchedSchemes.filter((m: any) => m.status === 'PARTIALLY_ELIGIBLE');
 
     let replyText = '🏛️ *SchemeSetu AI (योजना सेतु)*\n' +
       '*Document Scan & Eligibility Results*\n\n' +
