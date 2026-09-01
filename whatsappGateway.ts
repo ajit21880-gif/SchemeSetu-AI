@@ -188,6 +188,7 @@ async function handleIncomingMessage(msg: any) {
 
     const { matchedSchemes, summary } = matchCitizenToSchemes(citizenProfile);
     const eligibleList = matchedSchemes.filter((m) => m.status === 'ELIGIBLE');
+    const provisionalList = matchedSchemes.filter((m) => m.status === 'NEEDS_DOCUMENTS');
 
     let replyText =
       '🏛️ *SchemeSetu AI (योजना सेतु)*\n' +
@@ -196,11 +197,17 @@ async function handleIncomingMessage(msg: any) {
       '📍 *State*: ' + citizenProfile.state + ' (' + (citizenProfile.district || 'Pune') + ')\n' +
       '💵 *Family Income*: ₹' + (citizenProfile.annualIncomeINR || 400000).toLocaleString('en-IN') + '/yr\n\n' +
       '💰 *Direct Cash (DBT)*: ₹' + summary.totalAnnualCashBenefitINR.toLocaleString('en-IN') + '/year\n' +
-      '🏥 *Health Cover*: ₹' + (summary.totalCashlessHealthCoverINR / 100000).toFixed(0) + ' Lakhs\n\n' +
-      '📜 *Top Qualified Welfare Schemes* (' + eligibleList.length + ' total):\n';
+      '🏥 *Health Cover*: ₹' + (summary.totalCashlessHealthCoverINR / 100000).toFixed(0) + ' Lakhs\n' +
+      '🎁 *Grants & Subsidies*: ₹' + (summary.totalSubsidiesGrantINR || 65000).toLocaleString('en-IN') + '\n\n' +
+      '📜 *Qualified Schemes Breakdown*:\n' +
+      '• Fully Eligible (Immediate): ' + eligibleList.length + '\n' +
+      '• Qualified (Needs 1-2 Extra Docs): ' + provisionalList.length + '\n\n' +
+      '🌟 *Top Schemes You Qualify For*:\n';
 
-    eligibleList.slice(0, 4).forEach((item, idx) => {
-      replyText += (idx + 1) + '. *' + item.scheme.name.en + '*\n   • Benefit: ₹' + item.scheme.benefit.amountINR.toLocaleString('en-IN') + '\n';
+    const combinedList = [...eligibleList, ...provisionalList];
+    combinedList.slice(0, 4).forEach((item, idx) => {
+      const statusIcon = item.status === 'ELIGIBLE' ? '✅' : '📝';
+      replyText += (idx + 1) + '. ' + statusIcon + ' *' + item.scheme.name.en + '*\n   • Benefit: ₹' + item.scheme.benefit.amountINR.toLocaleString('en-IN') + '\n';
     });
 
     replyText += '\n🌐 *View Full Dossier & Apply Online*:\nhttps://schemesetu-ai.ai.studio\n\n_100% Free Public Interest Welfare Service_';

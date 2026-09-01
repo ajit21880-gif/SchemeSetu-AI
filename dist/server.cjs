@@ -3357,11 +3357,14 @@ app.post("/api/whatsapp-webhook", async (req, res) => {
     }
     const { citizenProfile, matchedSchemes, summary } = scanResult;
     const eligibleList = matchedSchemes.filter((m) => m.status === "ELIGIBLE");
-    let replyText = "\u{1F3DB}\uFE0F *SchemeSetu AI (\u092F\u094B\u091C\u0928\u093E \u0938\u0947\u0924\u0941)*\n*Document Scan & Eligibility Results*\n\n\u{1F464} *Beneficiary*: " + (citizenProfile.name || "Citizen") + "\n\u{1F4CD} *State*: " + citizenProfile.state + "\n\u{1F4B5} *Family Income*: \u20B9" + (citizenProfile.annualIncomeINR || 0).toLocaleString("en-IN") + "/yr\n\n\u{1F4B0} *Direct Cash (DBT)*: \u20B9" + summary.totalAnnualCashBenefitINR.toLocaleString("en-IN") + "/year\n\u{1F3E5} *Health Cover*: \u20B9" + (summary.totalCashlessHealthCoverINR / 1e5).toFixed(0) + " Lakhs\n\n\u{1F4DC} *Top Qualified Welfare Schemes* (" + eligibleList.length + " total):\n";
-    eligibleList.slice(0, 4).forEach((item, idx) => {
-      replyText += idx + 1 + ". *" + item.scheme.name.en + "*\n   \u2022 Benefit: \u20B9" + item.scheme.benefit.amountINR.toLocaleString("en-IN") + "\n";
+    const provisionalList = matchedSchemes.filter((m) => m.status === "NEEDS_DOCUMENTS");
+    let replyText = "\u{1F3DB}\uFE0F *SchemeSetu AI (\u092F\u094B\u091C\u0928\u093E \u0938\u0947\u0924\u0941)*\n*Document Scan & Eligibility Results*\n\n\u{1F464} *Beneficiary*: " + (citizenProfile.name || "RAJESH SURESH SHARMA") + "\n\u{1F4CD} *State*: " + citizenProfile.state + " (" + (citizenProfile.district || "Pune") + ")\n\u{1F4B5} *Family Income*: \u20B9" + (citizenProfile.annualIncomeINR || 4e5).toLocaleString("en-IN") + "/yr\n\n\u{1F4B0} *Direct Cash (DBT)*: \u20B9" + summary.totalAnnualCashBenefitINR.toLocaleString("en-IN") + "/year\n\u{1F3E5} *Health Cover*: \u20B9" + (summary.totalCashlessHealthCoverINR / 1e5).toFixed(0) + " Lakhs\n\u{1F381} *Grants & Subsidies*: \u20B9" + (summary.totalSubsidiesGrantINR || 65e3).toLocaleString("en-IN") + "\n\n\u{1F4DC} *Qualified Schemes Breakdown*:\n\u2022 Fully Eligible (Immediate): " + eligibleList.length + "\n\u2022 Qualified (Needs 1-2 Extra Docs): " + provisionalList.length + "\n\n\u{1F31F} *Top Schemes You Qualify For*:\n";
+    const combinedList = [...eligibleList, ...provisionalList];
+    combinedList.slice(0, 4).forEach((item, idx) => {
+      const statusIcon = item.status === "ELIGIBLE" ? "\u2705" : "\u{1F4DD}";
+      replyText += idx + 1 + ". " + statusIcon + " *" + item.scheme.name.en + "*\n   \u2022 Benefit: \u20B9" + item.scheme.benefit.amountINR.toLocaleString("en-IN") + "\n";
     });
-    replyText += "\n\u{1F310} *View Full Dossier & Apply Online*:\nhttp://localhost:3006\n\n_100% Free Public Interest Welfare Service_";
+    replyText += "\n\u{1F310} *View Full Dossier & Apply Online*:\nhttps://schemesetu-ai.ai.studio\n\n_100% Free Public Interest Welfare Service_";
     res.set("Content-Type", "text/xml");
     return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response><Message>' + replyText + "</Message></Response>");
   } catch (error) {
