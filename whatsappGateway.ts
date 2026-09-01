@@ -105,13 +105,22 @@ function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string) {
   };
 }
 
+import fs from 'fs';
+
+function getChromeExecutablePath(): string | undefined {
+  const paths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+  ];
+  return paths.find((p) => fs.existsSync(p));
+}
+
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
-  webVersionCache: {
-    type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1018944884-alpha.html',
-  },
   puppeteer: {
+    executablePath: getChromeExecutablePath(),
     headless: true,
     args: [
       '--no-sandbox',
