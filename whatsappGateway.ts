@@ -4,7 +4,7 @@ import qrcode from 'qrcode-terminal';
 import dotenv from 'dotenv';
 import { SAMPLE_DOCUMENTS } from './src/data/sampleDocuments.js';
 import { matchCitizenToSchemes } from './src/utils/schemeMatcher.js';
-import { CitizenProfile, DocumentType, Gender, IndianState, RationCardCategory, SocialCategory } from './src/types.js';
+import { CitizenProfile, DocumentType, FarmerCategory, Gender, IndianState, RationCardCategory, SocialCategory } from './src/types.js';
 
 dotenv.config();
 
@@ -67,10 +67,10 @@ async function processDocumentWithGeminiOrOCR(base64Data: string, mimeType: stri
               state: (data.state || 'Maharashtra') as IndianState,
               district: data.district || 'Central District',
               annualIncomeINR: Number(data.annualIncomeINR) || 250000,
-              socialCategory: (Number(data.annualIncomeINR) || 250000) <= 800000 ? 'EWS' : 'GEN',
-              rationCardType: (Number(data.annualIncomeINR) || 250000) <= 100000 ? 'BPL (Below Poverty Line)' : 'NPHH (Non-Priority Household)',
+              socialCategory: ((Number(data.annualIncomeINR) || 250000) <= 800000 ? 'EWS' : 'GEN') as SocialCategory,
+              rationCardType: ((Number(data.annualIncomeINR) || 250000) <= 100000 ? 'BPL (Below Poverty Line)' : 'NPHH (Non-Priority Household)') as RationCardCategory,
               landOwnershipAcres: 0,
-              farmerCategory: 'None',
+              farmerCategory: 'None' as FarmerCategory,
               familyMembersCount: 4,
               isStudent: false,
               isWidowOrSingleMother: false,
@@ -80,7 +80,7 @@ async function processDocumentWithGeminiOrOCR(base64Data: string, mimeType: stri
               isStreetVendorOrArtisan: false,
               occupation: 'Resident / Applicant',
               hasBankAadhaarSeeded: true,
-              verifiedDocuments: [data.documentType || 'Tahsildar Income Certificate'],
+              verifiedDocuments: [(data.documentType || 'Tahsildar Income Certificate') as DocumentType],
             }
           };
         }
@@ -245,10 +245,6 @@ function getChromeExecutablePath(): string | undefined {
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
-  webVersionCache: {
-    type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014114757-alpha.html',
-  },
   puppeteer: {
     executablePath: getChromeExecutablePath(),
     headless: true,
@@ -290,25 +286,25 @@ async function handleIncomingMessage(msg: any) {
     let citizenProfile: CitizenProfile | null = null;
     let docType: DocumentType = 'Tahsildar Income Certificate';
 
-    if (msg.hasMedia) {
-      console.log('📷 Downloading attached document/image/PDF...');
+    if (msg.hasMedia || (msg._data && msg._data.body && msg._data.mimetype)) {
+      console.log('📷 Processing attached document/image/PDF...');
       let media: any = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          media = await msg.downloadMedia();
-          if (media && media.data) break;
-        } catch (e: any) {
-          console.warn(`Attempt ${attempt} to download media failed (${e?.message || e}). Retrying in 800ms...`);
-          await new Promise(r => setTimeout(r, 800));
-        }
+      try {
+        media = await msg.downloadMedia();
+      } catch (e: any) {
+        console.warn('downloadMedia skipped, reading media from payload:', e?.message || e);
       }
 
-      if (media && media.data) {
-        const parsed = await processDocumentWithGeminiOrOCR(media.data, media.mimetype || 'image/jpeg', media.filename || '', msg.body || '');
+      const mediaData = media?.data || msg._data?.body || '';
+      const mimeType = media?.mimetype || msg._data?.mimetype || 'image/jpeg';
+      const filename = media?.filename || msg._data?.filename || msg._data?.caption || '';
+
+      if (mediaData && mediaData.length > 50) {
+        const parsed = await processDocumentWithGeminiOrOCR(mediaData, mimeType, filename, msg.body || '');
         citizenProfile = parsed.citizenProfile;
         docType = parsed.documentType;
       } else {
-        console.warn('⚠️ Media download returned empty content. Falling back to message body / dynamic extractor.');
+        console.warn('⚠️ Media data empty, using text fallback.');
       }
     }
 
