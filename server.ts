@@ -317,7 +317,7 @@ function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string, fi
 app.post('/api/scan-document', async (req, res) => {
   const startTime = Date.now();
 
-  try {
+try {
     const { imageBase64, mimeType = 'image/jpeg', filename = '', sampleDocId, preferredLanguage = 'en' } = req.body;
 
     // Handle Sample Document preset fast path
@@ -595,8 +595,8 @@ Return strictly JSON conforming to the schema.`;
   } catch (error) {
     console.error('Error in /api/scan-document:', error);
 
-    // Smart OCR fallback on uploaded file data (returns actual document details, e.g. Rajesh Suresh Sharma)
-    const parsedData = parseUploadedDocumentText(req.body?.imageBase64 || '', req.body?.mimeType || '');
+    // Smart OCR fallback on uploaded file data (returns actual document details)
+    const parsedData = parseUploadedDocumentText(req.body?.imageBase64 || '', req.body?.mimeType || '', req.body?.filename || '');
     const { matchedSchemes, summary } = matchCitizenToSchemes(parsedData.citizenProfile);
 
     res.json({

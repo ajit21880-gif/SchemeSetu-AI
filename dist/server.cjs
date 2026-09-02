@@ -3377,7 +3377,7 @@ Return strictly JSON conforming to the schema.`;
     res.json(scanResult);
   } catch (error) {
     console.error("Error in /api/scan-document:", error);
-    const parsedData = parseUploadedDocumentText(req.body?.imageBase64 || "", req.body?.mimeType || "");
+    const parsedData = parseUploadedDocumentText(req.body?.imageBase64 || "", req.body?.mimeType || "", req.body?.filename || "");
     const { matchedSchemes, summary } = matchCitizenToSchemes(parsedData.citizenProfile);
     res.json({
       success: true,
