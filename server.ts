@@ -257,8 +257,8 @@ function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string, fi
   const combined = (extractedText + ' ' + filename + ' ' + msgBody).replace(/\s+/g, ' ');
 
   const name = extractNameFromText(combined, filename);
-  const state = extractStateFromText(combined);
-  const income = extractIncomeFromText(combined);
+  const state = extractStateFromText(combined, filename);
+  const income = extractIncomeFromText(combined, filename);
 
   let district = 'Central District';
   const distMatch = combined.match(/([A-Za-z\s]{3,20})\s+District/i);
@@ -318,7 +318,7 @@ app.post('/api/scan-document', async (req, res) => {
   const startTime = Date.now();
 
   try {
-    const { imageBase64, mimeType = 'image/jpeg', sampleDocId, preferredLanguage = 'en' } = req.body;
+    const { imageBase64, mimeType = 'image/jpeg', filename = '', sampleDocId, preferredLanguage = 'en' } = req.body;
 
     // Handle Sample Document preset fast path
     if (sampleDocId) {
@@ -354,8 +354,8 @@ app.post('/api/scan-document', async (req, res) => {
     const ai = getGeminiClient();
 
     if (!imageBase64 || !ai) {
-      // Smart OCR fallback on uploaded file buffer (returns actual document details, e.g. Rajesh Suresh Sharma)
-      const parsedData = parseUploadedDocumentText(imageBase64 || '', mimeType);
+      // Smart OCR fallback on uploaded file buffer (returns actual document details)
+      const parsedData = parseUploadedDocumentText(imageBase64 || '', mimeType, filename);
       const { matchedSchemes, summary } = matchCitizenToSchemes(parsedData.citizenProfile);
 
       return res.json({

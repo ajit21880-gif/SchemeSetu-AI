@@ -3075,8 +3075,8 @@ function parseUploadedDocumentText(rawTextOrBase64, mimeType, filename = "", msg
   const extractedText = extractTextFromBuffer(rawTextOrBase64);
   const combined = (extractedText + " " + filename + " " + msgBody).replace(/\s+/g, " ");
   const name = extractNameFromText(combined, filename);
-  const state = extractStateFromText(combined);
-  const income = extractIncomeFromText(combined);
+  const state = extractStateFromText(combined, filename);
+  const income = extractIncomeFromText(combined, filename);
   let district = "Central District";
   const distMatch = combined.match(/([A-Za-z\s]{3,20})\s+District/i);
   if (distMatch && distMatch[1]?.trim()) {
@@ -3129,7 +3129,7 @@ function parseUploadedDocumentText(rawTextOrBase64, mimeType, filename = "", msg
 app.post("/api/scan-document", async (req, res) => {
   const startTime = Date.now();
   try {
-    const { imageBase64, mimeType = "image/jpeg", sampleDocId, preferredLanguage = "en" } = req.body;
+    const { imageBase64, mimeType = "image/jpeg", filename = "", sampleDocId, preferredLanguage = "en" } = req.body;
     if (sampleDocId) {
       const sample = SAMPLE_DOCUMENTS.find((d) => d.id === sampleDocId);
       if (sample) {
@@ -3158,7 +3158,7 @@ app.post("/api/scan-document", async (req, res) => {
     }
     const ai = getGeminiClient();
     if (!imageBase64 || !ai) {
-      const parsedData2 = parseUploadedDocumentText(imageBase64 || "", mimeType);
+      const parsedData2 = parseUploadedDocumentText(imageBase64 || "", mimeType, filename);
       const { matchedSchemes: matchedSchemes2, summary: summary2 } = matchCitizenToSchemes(parsedData2.citizenProfile);
       return res.json({
         success: true,
