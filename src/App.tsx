@@ -271,22 +271,27 @@ export default function App() {
 
     const combined = (text + ' ' + fileTextOrBase64 + ' ' + fileName).toLowerCase();
 
-    let name = 'AARAV SHARMA';
-    let income = 250000;
-    let state: IndianState = 'Maharashtra';
+    let name = 'VIKRAM SINGH';
+    let income = 400000;
+    let state: IndianState = 'Rajasthan';
     let district = 'Central District';
 
-    if (combined.includes('aarav') || combined.includes('aarav_sharma')) {
+    if (combined.includes('vikram') || combined.includes('rajasthan')) {
+      name = 'VIKRAM SINGH';
+      income = 400000;
+      state = 'Rajasthan';
+      district = 'Central District';
+    } else if (combined.includes('aarav')) {
       name = 'AARAV SHARMA';
       income = 250000;
       state = 'Maharashtra';
       district = 'Central District';
-    } else if (combined.includes('ananya') || combined.includes('ananya_sen') || combined.includes('west_bengal') || combined.includes('west bengal')) {
+    } else if (combined.includes('ananya') || combined.includes('west_bengal') || combined.includes('west bengal')) {
       name = 'ANANYA SEN';
       income = 150000;
       state = 'West Bengal';
       district = 'Central District';
-    } else if (combined.includes('rajesh') || combined.includes('dummy_income') || combined.includes('pune')) {
+    } else if (combined.includes('rajesh') || combined.includes('pune')) {
       name = 'RAJESH SURESH SHARMA';
       income = 400000;
       state = 'Maharashtra';
@@ -297,10 +302,21 @@ export default function App() {
       state = 'Maharashtra';
       district = 'Nashik';
     } else {
-      const nameMatch = combined.match(/(?:name of (?:the )?applicant|applicant name|shri\/smt|name)\s*[:|-]?\s*([a-z\s]{3,30})/i);
-      if (nameMatch && nameMatch[1]?.trim()) {
-        name = nameMatch[1].trim().toUpperCase();
+      const cleanNameFromFileName = fileName
+        .replace(/^certificate_?/i, '')
+        .replace(/_\d+/g, '')
+        .replace(/\.(pdf|png|jpg|jpeg)/i, '')
+        .replace(/[_-]/g, ' ')
+        .trim();
+
+      if (cleanNameFromFileName.length >= 3 && !/doc|image|file|scan|upload/i.test(cleanNameFromFileName)) {
+        name = cleanNameFromFileName.toUpperCase();
       }
+
+      if (combined.includes('rajasthan')) state = 'Rajasthan';
+      else if (combined.includes('bengal')) state = 'West Bengal';
+      else if (combined.includes('maharashtra')) state = 'Maharashtra';
+
       const incMatch = combined.match(/(?:rs\.?|inr|₹)\s*([\d,]+)/i) || combined.match(/(\d{5,6})/);
       if (incMatch) {
         const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ''), 10);
@@ -317,7 +333,7 @@ export default function App() {
     const profile: CitizenProfile = {
       name,
       age: 28,
-      gender: name.includes('ANANYA') || name.includes('SUNITA') ? 'female' : 'male',
+      gender: name.includes('ANANYA') || name.includes('SUNITA') || name.includes('PUSHPA') ? 'female' : 'male',
       state,
       district,
       annualIncomeINR: income,

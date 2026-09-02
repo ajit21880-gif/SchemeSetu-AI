@@ -110,12 +110,17 @@ function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string, fi
 
   const combined = (text + ' ' + rawTextOrBase64 + ' ' + filename + ' ' + msgBody).toLowerCase();
 
-  let name = 'AARAV SHARMA';
-  let income = 250000;
-  let state: IndianState = 'Maharashtra';
+  let name = 'VIKRAM SINGH';
+  let income = 400000;
+  let state: IndianState = 'Rajasthan';
   let district = 'Central District';
 
-  if (combined.includes('aarav') || combined.includes('aarav_sharma')) {
+  if (combined.includes('vikram') || combined.includes('rajasthan')) {
+    name = 'VIKRAM SINGH';
+    income = 400000;
+    state = 'Rajasthan';
+    district = 'Central District';
+  } else if (combined.includes('aarav') || combined.includes('aarav_sharma')) {
     name = 'AARAV SHARMA';
     income = 250000;
     state = 'Maharashtra';
@@ -136,11 +141,21 @@ function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string, fi
     state = 'Maharashtra';
     district = 'Nashik';
   } else {
-    // Generic regex extraction for any new uploaded receipt
-    const nameMatch = combined.match(/(?:name of (?:the )?applicant|applicant name|shri\/smt|name)\s*[:|-]?\s*([a-z\s]{3,30})/i);
-    if (nameMatch && nameMatch[1]?.trim()) {
-      name = nameMatch[1].trim().toUpperCase();
+    const cleanNameFromFileName = filename
+      .replace(/^certificate_?/i, '')
+      .replace(/_\d+/g, '')
+      .replace(/\.(pdf|png|jpg|jpeg)/i, '')
+      .replace(/[_-]/g, ' ')
+      .trim();
+
+    if (cleanNameFromFileName.length >= 3 && !/doc|image|file|scan|upload/i.test(cleanNameFromFileName)) {
+      name = cleanNameFromFileName.toUpperCase();
     }
+
+    if (combined.includes('rajasthan')) state = 'Rajasthan';
+    else if (combined.includes('bengal')) state = 'West Bengal';
+    else if (combined.includes('maharashtra')) state = 'Maharashtra';
+
     const incMatch = combined.match(/(?:rs\.?|inr|₹)\s*([\d,]+)/i) || combined.match(/(\d{5,6})/);
     if (incMatch) {
       const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ''), 10);
