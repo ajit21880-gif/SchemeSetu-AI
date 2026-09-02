@@ -18,99 +18,75 @@ import { GoogleGenAI } from '@google/genai';
 async function processDocumentWithGeminiOrOCR(base64Data: string, mimeType: string, filename: string = '', msgBody: string = '') {
   const apiKey = process.env.GEMINI_API_KEY;
 
-  if (apiKey) {
+  if (apiKey && base64Data && base64Data.length > 50) {
     try {
-      console.log('🤖 Invoking Gemini 2.5 Flash Vision OCR on uploaded WhatsApp document...');
+      console.log('🤖 Invoking Gemini 2.0 Flash Vision OCR on uploaded WhatsApp document...');
       const ai = new GoogleGenAI({ apiKey });
       const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, '');
 
-      let response: any;
-      try {
-        response = await ai.models.generateContent({
-          model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: mimeType.includes('pdf') ? 'application/pdf' : 'image/jpeg',
-                    data: cleanBase64,
-                  },
+      const response: any = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: mimeType.includes('pdf') ? 'application/pdf' : 'image/jpeg',
+                  data: cleanBase64,
                 },
-                {
-                  text: `Extract document details for government scheme eligibility. Return JSON:
+              },
+              {
+                text: `Extract document details for government scheme eligibility. Return valid JSON only:
 {
   "name": "Applicant Full Name",
   "age": 28,
   "gender": "female" or "male",
-  "state": "West Bengal" or "Maharashtra" or "Rajasthan" or state name,
+  "state": "Rajasthan" or "Maharashtra" or "West Bengal" or state name,
   "district": "District Name",
   "annualIncomeINR": 150000,
   "documentType": "Tahsildar Income Certificate"
 }`
-                }
-              ]
-            }
-          ]
-        });
-      } catch (err) {
-        response = await ai.models.generateContent({
-          model: 'gemini-1.5-flash',
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: mimeType.includes('pdf') ? 'application/pdf' : 'image/jpeg',
-                    data: cleanBase64,
-                  },
-                },
-                {
-                  text: `Extract document details for government scheme eligibility. Return JSON format.`
-                }
-              ]
-            }
-          ]
-        });
-      }
+              }
+            ]
+          }
+        ]
+      });
 
       const text = response.text || '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const data = JSON.parse(jsonMatch[0]);
         if (data.name && data.annualIncomeINR) {
-          const profile: CitizenProfile = {
-            name: String(data.name).toUpperCase(),
-            age: Number(data.age) || 28,
-            gender: data.gender === 'female' ? 'female' : 'male',
-            state: (data.state as IndianState) || 'West Bengal',
-            district: data.district || 'Central District',
-            annualIncomeINR: Number(data.annualIncomeINR),
-            socialCategory: Number(data.annualIncomeINR) <= 800000 ? 'EWS' : 'GEN',
-            rationCardType: Number(data.annualIncomeINR) <= 100000 ? 'BPL (Below Poverty Line)' : 'NPHH (Non-Priority Household)',
-            landOwnershipAcres: 0,
-            farmerCategory: 'None',
-            familyMembersCount: 4,
-            isStudent: false,
-            isWidowOrSingleMother: false,
-            hasDisabilityCertificate: false,
-            disabilityPercentage: 0,
-            hasPuccaHouse: false,
-            isStreetVendorOrArtisan: false,
-            occupation: 'Resident / Applicant',
-            hasBankAadhaarSeeded: true,
-            verifiedDocuments: [(data.documentType as DocumentType) || 'Tahsildar Income Certificate'],
-          };
           return {
-            documentType: (data.documentType as DocumentType) || 'Tahsildar Income Certificate',
-            citizenProfile: profile,
+            documentType: data.documentType || 'Tahsildar Income Certificate',
+            citizenProfile: {
+              name: String(data.name).toUpperCase().trim(),
+              age: Number(data.age) || 28,
+              gender: (data.gender === 'female' ? 'female' : 'male') as Gender,
+              state: (data.state || 'Maharashtra') as IndianState,
+              district: data.district || 'Central District',
+              annualIncomeINR: Number(data.annualIncomeINR) || 250000,
+              socialCategory: (Number(data.annualIncomeINR) || 250000) <= 800000 ? 'EWS' : 'GEN',
+              rationCardType: (Number(data.annualIncomeINR) || 250000) <= 100000 ? 'BPL (Below Poverty Line)' : 'NPHH (Non-Priority Household)',
+              landOwnershipAcres: 0,
+              farmerCategory: 'None',
+              familyMembersCount: 4,
+              isStudent: false,
+              isWidowOrSingleMother: false,
+              hasDisabilityCertificate: false,
+              disabilityPercentage: 0,
+              hasPuccaHouse: false,
+              isStreetVendorOrArtisan: false,
+              occupation: 'Resident / Applicant',
+              hasBankAadhaarSeeded: true,
+              verifiedDocuments: [data.documentType || 'Tahsildar Income Certificate'],
+            }
           };
         }
       }
-    } catch (err) {
-      console.warn('Gemini Vision API call skipped/failed, using fast OCR pattern extractor:', err);
+    } catch (err: any) {
+      console.warn('Gemini Vision API call skipped/failed, using fast OCR pattern extractor:', err?.message || err);
     }
   }
 
@@ -130,60 +106,91 @@ function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string, fi
   const combined = (text + ' ' + rawTextOrBase64 + ' ' + filename + ' ' + msgBody).replace(/\s+/g, ' ');
   const lowerCombined = combined.toLowerCase();
 
+  // 1. Generic Universal Name Extraction
   let name = '';
-  if (lowerCombined.includes('vikram')) name = 'VIKRAM SINGH';
-  else if (lowerCombined.includes('aarav')) name = 'AARAV SHARMA';
-  else if (lowerCombined.includes('ananya')) name = 'ANANYA SEN';
-  else if (lowerCombined.includes('rajesh')) name = 'RAJESH SURESH SHARMA';
-  else if (lowerCombined.includes('sunita')) name = 'SUNITA RAMESH PATIL';
-  else {
-    const nameMatch = combined.match(/(?:1\.\s*)?(?:Name of (?:the )?Applicant|Beneficiary Name|Applicant Name|Shri\/Smt|Name|नांव|नाव|नाम)\s*[:|-]?\s*([A-Za-z\s]{3,35})/i);
-    if (nameMatch && nameMatch[1]?.trim()) {
-      const candidate = nameMatch[1].trim();
-      if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE/i.test(candidate)) {
-        name = candidate.toUpperCase();
-      }
-    }
-    if (!name) {
-      const cleanFile = filename
-        .replace(/^certificate_?/i, '')
-        .replace(/_\d+/g, '')
-        .replace(/\.(pdf|png|jpg|jpeg)/i, '')
-        .replace(/[^a-zA-Z\s]/g, ' ')
-        .trim();
-      if (cleanFile.length >= 3 && !/doc|image|file|scan|upload|pdf|png|jpg/i.test(cleanFile)) {
-        name = cleanFile.toUpperCase();
-      } else {
-        name = 'CITIZEN APPLICANT';
-      }
+  const namePatternMatch =
+    combined.match(/(?:1\.\s*)?(?:Name of (?:the )?Applicant|Beneficiary Name|Applicant Name|Shri\/Smt|Name|नांव|नाव|नाम)\s*[:|-]?\s*([A-Za-z\s]{3,35})/i) ||
+    combined.match(/Shri\/Smt\.?\s+([A-Za-z\s]{3,35})/i) ||
+    combined.match(/Applicant\s*[:|-]?\s*([A-Za-z\s]{3,35})/i);
+
+  if (namePatternMatch && namePatternMatch[1]?.trim()) {
+    const candidate = namePatternMatch[1].trim();
+    if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE|REVENUE|OFFICE|TAHSILDAR/i.test(candidate)) {
+      name = candidate.toUpperCase();
     }
   }
 
+  if (!name && filename) {
+    const cleanFile = filename
+      .replace(/^certificate_?/i, '')
+      .replace(/income_?/i, '')
+      .replace(/cert_?/i, '')
+      .replace(/_\d+/g, '')
+      .replace(/\.(pdf|png|jpg|jpeg)/i, '')
+      .replace(/[^a-zA-Z\s]/g, ' ')
+      .trim();
+
+    if (cleanFile.length >= 3 && !/doc|image|file|scan|upload|pdf|png|jpg|img|\d+/i.test(cleanFile)) {
+      name = cleanFile.toUpperCase();
+    }
+  }
+
+  if (!name) {
+    name = 'CITIZEN APPLICANT';
+  }
+
+  // 2. Generic Universal State Extraction
   let state: IndianState = 'Maharashtra';
-  if (lowerCombined.includes('rajasthan')) state = 'Rajasthan';
-  else if (lowerCombined.includes('west bengal') || lowerCombined.includes('bengal')) state = 'West Bengal';
-  else if (lowerCombined.includes('maharashtra') || lowerCombined.includes('pune') || lowerCombined.includes('nashik')) state = 'Maharashtra';
-  else if (lowerCombined.includes('uttar pradesh') || lowerCombined.includes('lucknow')) state = 'Uttar Pradesh';
-  else if (lowerCombined.includes('bihar') || lowerCombined.includes('patna')) state = 'Bihar';
+  const stateKeywords: { [key: string]: IndianState } = {
+    'rajasthan': 'Rajasthan',
+    'west bengal': 'West Bengal',
+    'bengal': 'West Bengal',
+    'maharashtra': 'Maharashtra',
+    'pune': 'Maharashtra',
+    'nashik': 'Maharashtra',
+    'mumbai': 'Maharashtra',
+    'uttar pradesh': 'Uttar Pradesh',
+    'lucknow': 'Uttar Pradesh',
+    'bihar': 'Bihar',
+    'patna': 'Bihar',
+    'gujarat': 'Gujarat',
+    'karnataka': 'Karnataka',
+    'tamil nadu': 'Tamil Nadu',
+    'delhi': 'Delhi',
+    'punjab': 'Punjab',
+    'haryana': 'Haryana',
+    'kerala': 'Kerala',
+    'madhya pradesh': 'Madhya Pradesh',
+    'odisha': 'Odisha',
+  };
 
-  let income = 250000;
-  if (lowerCombined.includes('400,000') || lowerCombined.includes('400000') || lowerCombined.includes('four lakh')) income = 400000;
-  else if (lowerCombined.includes('150,000') || lowerCombined.includes('150000') || lowerCombined.includes('one lakh fifty')) income = 150000;
-  else if (lowerCombined.includes('250,000') || lowerCombined.includes('250000') || lowerCombined.includes('two lakh fifty')) income = 250000;
-  else if (lowerCombined.includes('80,000') || lowerCombined.includes('80000') || lowerCombined.includes('eighty thousand')) income = 80000;
-  else {
-    const incMatch = combined.match(/(?:Rs\.?|INR|₹)\s*([\d,]+)/i) || combined.match(/(\d{5,6})/);
-    if (incMatch) {
-      const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ''), 10);
-      if (!isNaN(parsed) && parsed > 0) income = parsed;
+  for (const [kw, st] of Object.entries(stateKeywords)) {
+    if (lowerCombined.includes(kw)) {
+      state = st;
+      break;
     }
   }
 
+  // 3. Generic Universal Income Extraction
+  let income = 250000;
+  const incMatch =
+    combined.match(/(?:Applicant's Income|Assessed Annual Income|Annual Income|Gross Income|Income|आय|उत्पन्न)[^Rs₹\d]{0,40}(?:Rs\.?|INR|₹)?\s*([\d,]+)/i) ||
+    combined.match(/(?:Rs\.?|INR|₹)\s*([\d,]+)(?:\/-|\s*per|\s*annual)?/i) ||
+    combined.match(/(\d{5,6})/);
+
+  if (incMatch) {
+    const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ''), 10);
+    if (!isNaN(parsed) && parsed > 0 && parsed <= 5000000) {
+      income = parsed;
+    }
+  }
+
+  // 4. Generic District Extraction
   let district = 'Central District';
   const distMatch = combined.match(/([A-Za-z\s]{3,20})\s+District/i);
   if (distMatch && distMatch[1]?.trim()) {
     const d = distMatch[1].trim();
-    if (!/STATE|GOVERNMENT|REVENUE/i.test(d)) {
+    if (!/STATE|GOVERNMENT|REVENUE|OFFICE/i.test(d)) {
       district = d;
     }
   }
@@ -285,15 +292,23 @@ async function handleIncomingMessage(msg: any) {
 
     if (msg.hasMedia) {
       console.log('📷 Downloading attached document/image/PDF...');
-      try {
-        const media = await msg.downloadMedia();
-        if (media && media.data) {
-          const parsed = await processDocumentWithGeminiOrOCR(media.data, media.mimetype || 'image/jpeg', media.filename || '', msg.body || '');
-          citizenProfile = parsed.citizenProfile;
-          docType = parsed.documentType;
+      let media: any = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          media = await msg.downloadMedia();
+          if (media && media.data) break;
+        } catch (e: any) {
+          console.warn(`Attempt ${attempt} to download media failed (${e?.message || e}). Retrying in 800ms...`);
+          await new Promise(r => setTimeout(r, 800));
         }
-      } catch (e) {
-        console.warn('Error downloading media from WhatsApp message:', e);
+      }
+
+      if (media && media.data) {
+        const parsed = await processDocumentWithGeminiOrOCR(media.data, media.mimetype || 'image/jpeg', media.filename || '', msg.body || '');
+        citizenProfile = parsed.citizenProfile;
+        docType = parsed.documentType;
+      } else {
+        console.warn('⚠️ Media download returned empty content. Falling back to message body / dynamic extractor.');
       }
     }
 

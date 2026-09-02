@@ -272,65 +272,91 @@ export default function App() {
     const combined = (text + ' ' + fileTextOrBase64 + ' ' + fileName).replace(/\s+/g, ' ');
     const lowerCombined = combined.toLowerCase();
 
-    // 1. Dynamic Name Extraction (No hardcoded starting defaults!)
+    // 1. Generic Universal Name Extraction
     let name = '';
+    const namePatternMatch =
+      combined.match(/(?:1\.\s*)?(?:Name of (?:the )?Applicant|Beneficiary Name|Applicant Name|Shri\/Smt|Name|नांव|नाव|नाम)\s*[:|-]?\s*([A-Za-z\s]{3,35})/i) ||
+      combined.match(/Shri\/Smt\.?\s+([A-Za-z\s]{3,35})/i) ||
+      combined.match(/Applicant\s*[:|-]?\s*([A-Za-z\s]{3,35})/i);
 
-    if (lowerCombined.includes('vikram')) name = 'VIKRAM SINGH';
-    else if (lowerCombined.includes('aarav')) name = 'AARAV SHARMA';
-    else if (lowerCombined.includes('ananya')) name = 'ANANYA SEN';
-    else if (lowerCombined.includes('rajesh')) name = 'RAJESH SURESH SHARMA';
-    else if (lowerCombined.includes('sunita')) name = 'SUNITA RAMESH PATIL';
-    else {
-      const nameMatch = combined.match(/(?:1\.\s*)?(?:Name of (?:the )?Applicant|Beneficiary Name|Applicant Name|Shri\/Smt|Name|नांव|नाव|नाम)\s*[:|-]?\s*([A-Za-z\s]{3,35})/i);
-      if (nameMatch && nameMatch[1]?.trim()) {
-        const candidate = nameMatch[1].trim();
-        if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE/i.test(candidate)) {
-          name = candidate.toUpperCase();
-        }
-      }
-      if (!name) {
-        const cleanFile = fileName
-          .replace(/^certificate_?/i, '')
-          .replace(/_\d+/g, '')
-          .replace(/\.(pdf|png|jpg|jpeg)/i, '')
-          .replace(/[^a-zA-Z\s]/g, ' ')
-          .trim();
-        if (cleanFile.length >= 3 && !/doc|image|file|scan|upload|pdf|png|jpg/i.test(cleanFile)) {
-          name = cleanFile.toUpperCase();
-        } else {
-          name = 'CITIZEN APPLICANT';
-        }
+    if (namePatternMatch && namePatternMatch[1]?.trim()) {
+      const candidate = namePatternMatch[1].trim();
+      if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE|REVENUE|OFFICE|TAHSILDAR/i.test(candidate)) {
+        name = candidate.toUpperCase();
       }
     }
 
-    // 2. Dynamic State Extraction
+    if (!name && fileName) {
+      const cleanFile = fileName
+        .replace(/^certificate_?/i, '')
+        .replace(/income_?/i, '')
+        .replace(/cert_?/i, '')
+        .replace(/_\d+/g, '')
+        .replace(/\.(pdf|png|jpg|jpeg)/i, '')
+        .replace(/[^a-zA-Z\s]/g, ' ')
+        .trim();
+
+      if (cleanFile.length >= 3 && !/doc|image|file|scan|upload|pdf|png|jpg|img|\d+/i.test(cleanFile)) {
+        name = cleanFile.toUpperCase();
+      }
+    }
+
+    if (!name) {
+      name = 'CITIZEN APPLICANT';
+    }
+
+    // 2. Generic Universal State Extraction
     let state: IndianState = 'Maharashtra';
-    if (lowerCombined.includes('rajasthan')) state = 'Rajasthan';
-    else if (lowerCombined.includes('west bengal') || lowerCombined.includes('bengal')) state = 'West Bengal';
-    else if (lowerCombined.includes('maharashtra') || lowerCombined.includes('pune') || lowerCombined.includes('nashik')) state = 'Maharashtra';
-    else if (lowerCombined.includes('uttar pradesh') || lowerCombined.includes('lucknow')) state = 'Uttar Pradesh';
-    else if (lowerCombined.includes('bihar') || lowerCombined.includes('patna')) state = 'Bihar';
+    const stateKeywords: { [key: string]: IndianState } = {
+      'rajasthan': 'Rajasthan',
+      'west bengal': 'West Bengal',
+      'bengal': 'West Bengal',
+      'maharashtra': 'Maharashtra',
+      'pune': 'Maharashtra',
+      'nashik': 'Maharashtra',
+      'mumbai': 'Maharashtra',
+      'uttar pradesh': 'Uttar Pradesh',
+      'lucknow': 'Uttar Pradesh',
+      'bihar': 'Bihar',
+      'patna': 'Bihar',
+      'gujarat': 'Gujarat',
+      'karnataka': 'Karnataka',
+      'tamil nadu': 'Tamil Nadu',
+      'delhi': 'Delhi',
+      'punjab': 'Punjab',
+      'haryana': 'Haryana',
+      'kerala': 'Kerala',
+      'madhya pradesh': 'Madhya Pradesh',
+      'odisha': 'Odisha',
+    };
 
-    // 3. Dynamic Income Extraction
-    let income = 250000;
-    if (lowerCombined.includes('400,000') || lowerCombined.includes('400000') || lowerCombined.includes('four lakh')) income = 400000;
-    else if (lowerCombined.includes('150,000') || lowerCombined.includes('150000') || lowerCombined.includes('one lakh fifty')) income = 150000;
-    else if (lowerCombined.includes('250,000') || lowerCombined.includes('250000') || lowerCombined.includes('two lakh fifty')) income = 250000;
-    else if (lowerCombined.includes('80,000') || lowerCombined.includes('80000') || lowerCombined.includes('eighty thousand')) income = 80000;
-    else {
-      const incMatch = combined.match(/(?:Rs\.?|INR|₹)\s*([\d,]+)/i) || combined.match(/(\d{5,6})/);
-      if (incMatch) {
-        const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ''), 10);
-        if (!isNaN(parsed) && parsed > 0) income = parsed;
+    for (const [kw, st] of Object.entries(stateKeywords)) {
+      if (lowerCombined.includes(kw)) {
+        state = st;
+        break;
       }
     }
 
-    // 4. Dynamic District Extraction
+    // 3. Generic Universal Income Extraction
+    let income = 250000;
+    const incMatch =
+      combined.match(/(?:Applicant's Income|Assessed Annual Income|Annual Income|Gross Income|Income|आय|उत्पन्न)[^Rs₹\d]{0,40}(?:Rs\.?|INR|₹)?\s*([\d,]+)/i) ||
+      combined.match(/(?:Rs\.?|INR|₹)\s*([\d,]+)(?:\/-|\s*per|\s*annual)?/i) ||
+      combined.match(/(\d{5,6})/);
+
+    if (incMatch) {
+      const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ''), 10);
+      if (!isNaN(parsed) && parsed > 0 && parsed <= 5000000) {
+        income = parsed;
+      }
+    }
+
+    // 4. Generic District Extraction
     let district = 'Central District';
     const distMatch = combined.match(/([A-Za-z\s]{3,20})\s+District/i);
     if (distMatch && distMatch[1]?.trim()) {
       const d = distMatch[1].trim();
-      if (!/STATE|GOVERNMENT|REVENUE/i.test(d)) {
+      if (!/STATE|GOVERNMENT|REVENUE|OFFICE/i.test(d)) {
         district = d;
       }
     }
@@ -344,7 +370,7 @@ export default function App() {
     const profile: CitizenProfile = {
       name,
       age: 28,
-      gender: name.includes('ANANYA') || name.includes('SUNITA') || name.includes('PUSHPA') ? 'female' : 'male',
+      gender: 'male',
       state,
       district,
       annualIncomeINR: income,
