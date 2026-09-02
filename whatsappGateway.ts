@@ -14,30 +14,52 @@ console.log('======================================================\n');
 
 import { GoogleGenAI } from '@google/genai';
 
+function extractTextFromBuffer(rawTextOrBase64: string): string {
+  try {
+    const cleanBase64 = rawTextOrBase64.replace(/^data:[^;]+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    const rawStr = buffer.toString('binary');
+
+    // Extract text tokens inside PDF parentheses
+    const textMatches = rawStr.match(/\(([^()]{2,100})\)/g);
+    if (textMatches && textMatches.length > 5) {
+      return textMatches.map((m) => m.replace(/[()]/g, '')).join(' ');
+    }
+    return rawStr.replace(/[^\x20-\x7E\n\r]/g, ' ');
+  } catch (e) {
+    return rawTextOrBase64;
+  }
+}
+
 // Smart Regional Document OCR & Fast Entity Extractor
 async function processDocumentWithGeminiOrOCR(base64Data: string, mimeType: string, filename: string = '', msgBody: string = '') {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (apiKey && base64Data && base64Data.length > 50) {
     try {
-      console.log('🤖 Invoking Gemini 2.0 Flash Vision OCR on uploaded WhatsApp document...');
+      console.log('🤖 Invoking Gemini Vision OCR on uploaded WhatsApp document...');
       const ai = new GoogleGenAI({ apiKey });
       const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, '');
 
-      const response: any = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: [
-          {
-            role: 'user',
-            parts: [
+      const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-exp'];
+      let response: any = null;
+
+      for (const modelName of modelsToTry) {
+        try {
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents: [
               {
-                inlineData: {
-                  mimeType: mimeType.includes('pdf') ? 'application/pdf' : 'image/jpeg',
-                  data: cleanBase64,
-                },
-              },
-              {
-                text: `Extract document details for government scheme eligibility. Return valid JSON only:
+                role: 'user',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: mimeType.includes('pdf') ? 'application/pdf' : 'image/jpeg',
+                      data: cleanBase64,
+                    },
+                  },
+                  {
+                    text: `Extract document details for government scheme eligibility. Return valid JSON only:
 {
   "name": "Applicant Full Name",
   "age": 28,
@@ -47,42 +69,49 @@ async function processDocumentWithGeminiOrOCR(base64Data: string, mimeType: stri
   "annualIncomeINR": 150000,
   "documentType": "Tahsildar Income Certificate"
 }`
+                  }
+                ]
               }
             ]
-          }
-        ]
-      });
+          });
+          if (response && response.text) break;
+        } catch (mErr) {
+          // Try next model
+        }
+      }
 
-      const text = response.text || '';
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0]);
-        if (data.name && data.annualIncomeINR) {
-          return {
-            documentType: data.documentType || 'Tahsildar Income Certificate',
-            citizenProfile: {
-              name: String(data.name).toUpperCase().trim(),
-              age: Number(data.age) || 28,
-              gender: (data.gender === 'female' ? 'female' : 'male') as Gender,
-              state: (data.state || 'Maharashtra') as IndianState,
-              district: data.district || 'Central District',
-              annualIncomeINR: Number(data.annualIncomeINR) || 250000,
-              socialCategory: ((Number(data.annualIncomeINR) || 250000) <= 800000 ? 'EWS' : 'GEN') as SocialCategory,
-              rationCardType: ((Number(data.annualIncomeINR) || 250000) <= 100000 ? 'BPL (Below Poverty Line)' : 'NPHH (Non-Priority Household)') as RationCardCategory,
-              landOwnershipAcres: 0,
-              farmerCategory: 'None' as FarmerCategory,
-              familyMembersCount: 4,
-              isStudent: false,
-              isWidowOrSingleMother: false,
-              hasDisabilityCertificate: false,
-              disabilityPercentage: 0,
-              hasPuccaHouse: false,
-              isStreetVendorOrArtisan: false,
-              occupation: 'Resident / Applicant',
-              hasBankAadhaarSeeded: true,
-              verifiedDocuments: [(data.documentType || 'Tahsildar Income Certificate') as DocumentType],
-            }
-          };
+      if (response && response.text) {
+        const text = response.text || '';
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const data = JSON.parse(jsonMatch[0]);
+          if (data.name && data.annualIncomeINR) {
+            return {
+              documentType: (data.documentType || 'Tahsildar Income Certificate') as DocumentType,
+              citizenProfile: {
+                name: String(data.name).toUpperCase().trim(),
+                age: Number(data.age) || 28,
+                gender: (data.gender === 'female' ? 'female' : 'male') as Gender,
+                state: (data.state || 'Maharashtra') as IndianState,
+                district: data.district || 'Central District',
+                annualIncomeINR: Number(data.annualIncomeINR) || 250000,
+                socialCategory: ((Number(data.annualIncomeINR) || 250000) <= 800000 ? 'EWS' : 'GEN') as SocialCategory,
+                rationCardType: ((Number(data.annualIncomeINR) || 250000) <= 100000 ? 'BPL (Below Poverty Line)' : 'NPHH (Non-Priority Household)') as RationCardCategory,
+                landOwnershipAcres: 0,
+                farmerCategory: 'None' as FarmerCategory,
+                familyMembersCount: 4,
+                isStudent: false,
+                isWidowOrSingleMother: false,
+                hasDisabilityCertificate: false,
+                disabilityPercentage: 0,
+                hasPuccaHouse: false,
+                isStreetVendorOrArtisan: false,
+                occupation: 'Resident / Applicant',
+                hasBankAadhaarSeeded: true,
+                verifiedDocuments: [(data.documentType || 'Tahsildar Income Certificate') as DocumentType],
+              }
+            };
+          }
         }
       }
     } catch (err: any) {
@@ -94,16 +123,8 @@ async function processDocumentWithGeminiOrOCR(base64Data: string, mimeType: stri
 }
 
 function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string, filename: string = '', msgBody: string = '') {
-  let text = '';
-  try {
-    const cleanBase64 = rawTextOrBase64.replace(/^data:[^;]+;base64,/, '');
-    const buffer = Buffer.from(cleanBase64, 'base64');
-    text = buffer.toString('utf-8');
-  } catch (e) {
-    text = rawTextOrBase64;
-  }
-
-  const combined = (text + ' ' + rawTextOrBase64 + ' ' + filename + ' ' + msgBody).replace(/\s+/g, ' ');
+  const extractedText = extractTextFromBuffer(rawTextOrBase64);
+  const combined = (extractedText + ' ' + filename + ' ' + msgBody).replace(/\s+/g, ' ');
   const lowerCombined = combined.toLowerCase();
 
   // 1. Generic Universal Name Extraction
@@ -115,22 +136,21 @@ function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string, fi
 
   if (namePatternMatch && namePatternMatch[1]?.trim()) {
     const candidate = namePatternMatch[1].trim();
-    if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE|REVENUE|OFFICE|TAHSILDAR/i.test(candidate)) {
+    if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE|REVENUE|OFFICE|TAHSILDAR|DIVISION/i.test(candidate)) {
       name = candidate.toUpperCase();
     }
   }
 
   if (!name && filename) {
     const cleanFile = filename
-      .replace(/^certificate_?/i, '')
-      .replace(/income_?/i, '')
-      .replace(/cert_?/i, '')
-      .replace(/_\d+/g, '')
       .replace(/\.(pdf|png|jpg|jpeg)/i, '')
+      .replace(/^(certificate|income_certificate|income_cert|cert)[_-]?/i, '')
+      .replace(/[_-]\d+$/g, '')
       .replace(/[^a-zA-Z\s]/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
 
-    if (cleanFile.length >= 3 && !/doc|image|file|scan|upload|pdf|png|jpg|img|\d+/i.test(cleanFile)) {
+    if (cleanFile.length >= 2 && !/^(doc|document|image|file|scan|upload|pdf|png|jpg|img)$/i.test(cleanFile)) {
       name = cleanFile.toUpperCase();
     }
   }
@@ -141,47 +161,28 @@ function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string, fi
 
   // 2. Generic Universal State Extraction
   let state: IndianState = 'Maharashtra';
-  const stateKeywords: { [key: string]: IndianState } = {
-    'rajasthan': 'Rajasthan',
-    'west bengal': 'West Bengal',
-    'bengal': 'West Bengal',
-    'maharashtra': 'Maharashtra',
-    'pune': 'Maharashtra',
-    'nashik': 'Maharashtra',
-    'mumbai': 'Maharashtra',
-    'uttar pradesh': 'Uttar Pradesh',
-    'lucknow': 'Uttar Pradesh',
-    'bihar': 'Bihar',
-    'patna': 'Bihar',
-    'gujarat': 'Gujarat',
-    'karnataka': 'Karnataka',
-    'tamil nadu': 'Tamil Nadu',
-    'delhi': 'Delhi',
-    'punjab': 'Punjab',
-    'haryana': 'Haryana',
-    'kerala': 'Kerala',
-    'madhya pradesh': 'Madhya Pradesh',
-    'odisha': 'Odisha',
-  };
-
-  for (const [kw, st] of Object.entries(stateKeywords)) {
-    if (lowerCombined.includes(kw)) {
-      state = st;
-      break;
-    }
+  if (lowerCombined.includes('west bengal') || lowerCombined.includes('bengal') || lowerCombined.includes('kolkata')) {
+    state = 'West Bengal';
+  } else if (lowerCombined.includes('rajasthan') || lowerCombined.includes('jaipur')) {
+    state = 'Rajasthan';
+  } else if (lowerCombined.includes('maharashtra') || lowerCombined.includes('pune') || lowerCombined.includes('mumbai') || lowerCombined.includes('nashik')) {
+    state = 'Maharashtra';
+  } else if (lowerCombined.includes('uttar pradesh') || lowerCombined.includes('lucknow')) {
+    state = 'Uttar Pradesh';
+  } else if (lowerCombined.includes('bihar') || lowerCombined.includes('patna')) {
+    state = 'Bihar';
   }
 
-  // 3. Generic Universal Income Extraction
+  // 3. Generic Universal Income Extraction (Must be >= 10,000 INR to filter out random single digits)
   let income = 250000;
-  const incMatch =
-    combined.match(/(?:Applicant's Income|Assessed Annual Income|Annual Income|Gross Income|Income|आय|उत्पन्न)[^Rs₹\d]{0,40}(?:Rs\.?|INR|₹)?\s*([\d,]+)/i) ||
-    combined.match(/(?:Rs\.?|INR|₹)\s*([\d,]+)(?:\/-|\s*per|\s*annual)?/i) ||
-    combined.match(/(\d{5,6})/);
-
-  if (incMatch) {
-    const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ''), 10);
-    if (!isNaN(parsed) && parsed > 0 && parsed <= 5000000) {
-      income = parsed;
+  const incMatches = combined.match(/(?:Rs\.?|INR|₹)?\s*([\d,]{5,8})(?:\/-|\s*per|\s*annual)?/gi);
+  if (incMatches) {
+    for (const matchStr of incMatches) {
+      const parsed = parseInt(matchStr.replace(/[^\d]/g, ''), 10);
+      if (!isNaN(parsed) && parsed >= 10000 && parsed <= 5000000) {
+        income = parsed;
+        break;
+      }
     }
   }
 
@@ -195,24 +196,23 @@ function parseUploadedDocumentText(rawTextOrBase64: string, mimeType: string, fi
     }
   }
 
-  // Determine Document Type
   let docType: DocumentType = 'Tahsildar Income Certificate';
-  if (/ration/i.test(combined)) docType = 'Ration Card (NFSA/BPL/AAY)';
-  else if (/7\/12|satbara/i.test(combined)) docType = '7/12 Land Record (Satbara / RoR / Khasra)';
-  else if (/caste/i.test(combined)) docType = 'Caste / Community Certificate';
-  else if (/disability|udid/i.test(combined)) docType = 'Divyangjan UDID / Disability Certificate';
+  if (/ration/i.test(lowerCombined)) docType = 'Ration Card (NFSA/BPL/AAY)';
+  else if (/7\/12|satbara/i.test(lowerCombined)) docType = '7/12 Land Record (Satbara / RoR / Khasra)';
+  else if (/caste/i.test(lowerCombined)) docType = 'Caste / Community Certificate';
+  else if (/disability|udid/i.test(lowerCombined)) docType = 'Divyangjan UDID / Disability Certificate';
 
   const profile: CitizenProfile = {
     name,
     age: 28,
-    gender: name.includes('ANANYA') || name.includes('SUNITA') ? 'female' : 'male',
+    gender: 'male',
     state,
     district,
     annualIncomeINR: income,
-    socialCategory: income <= 800000 ? 'EWS' : 'GEN',
-    rationCardType: income <= 100000 ? 'BPL (Below Poverty Line)' : 'NPHH (Non-Priority Household)',
+    socialCategory: ((income <= 800000 ? 'EWS' : 'GEN') as SocialCategory),
+    rationCardType: ((income <= 100000 ? 'BPL (Below Poverty Line)' : 'NPHH (Non-Priority Household)') as RationCardCategory),
     landOwnershipAcres: 0,
-    farmerCategory: 'None',
+    farmerCategory: 'None' as FarmerCategory,
     familyMembersCount: 4,
     isStudent: false,
     isWidowOrSingleMother: false,

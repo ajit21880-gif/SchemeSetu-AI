@@ -261,15 +261,21 @@ export default function App() {
 
   // Helper: Create dynamic response for custom uploaded citizen document
   const createDynamicUploadedResponse = useCallback((fileTextOrBase64: string, fileName: string): DocumentScanResponse => {
-    let text = fileTextOrBase64 || '';
+    let extractedText = '';
     try {
       const cleanBase64 = fileTextOrBase64.replace(/^data:[^;]+;base64,/, '');
-      text = atob(cleanBase64.substring(0, 5000));
+      const rawStr = atob(cleanBase64.substring(0, 10000));
+      const textMatches = rawStr.match(/\(([^()]{2,100})\)/g);
+      if (textMatches && textMatches.length > 5) {
+        extractedText = textMatches.map((m) => m.replace(/[()]/g, '')).join(' ');
+      } else {
+        extractedText = rawStr.replace(/[^\x20-\x7E\n\r]/g, ' ');
+      }
     } catch (e) {
-      text = fileTextOrBase64;
+      extractedText = fileTextOrBase64;
     }
 
-    const combined = (text + ' ' + fileTextOrBase64 + ' ' + fileName).replace(/\s+/g, ' ');
+    const combined = (extractedText + ' ' + fileName).replace(/\s+/g, ' ');
     const lowerCombined = combined.toLowerCase();
 
     // 1. Generic Universal Name Extraction
@@ -281,22 +287,21 @@ export default function App() {
 
     if (namePatternMatch && namePatternMatch[1]?.trim()) {
       const candidate = namePatternMatch[1].trim();
-      if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE|REVENUE|OFFICE|TAHSILDAR/i.test(candidate)) {
+      if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE|REVENUE|OFFICE|TAHSILDAR|DIVISION/i.test(candidate)) {
         name = candidate.toUpperCase();
       }
     }
 
     if (!name && fileName) {
       const cleanFile = fileName
-        .replace(/^certificate_?/i, '')
-        .replace(/income_?/i, '')
-        .replace(/cert_?/i, '')
-        .replace(/_\d+/g, '')
         .replace(/\.(pdf|png|jpg|jpeg)/i, '')
+        .replace(/^(certificate|income_certificate|income_cert|cert)[_-]?/i, '')
+        .replace(/[_-]\d+$/g, '')
         .replace(/[^a-zA-Z\s]/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
 
-      if (cleanFile.length >= 3 && !/doc|image|file|scan|upload|pdf|png|jpg|img|\d+/i.test(cleanFile)) {
+      if (cleanFile.length >= 2 && !/^(doc|document|image|file|scan|upload|pdf|png|jpg|img)$/i.test(cleanFile)) {
         name = cleanFile.toUpperCase();
       }
     }
@@ -307,47 +312,28 @@ export default function App() {
 
     // 2. Generic Universal State Extraction
     let state: IndianState = 'Maharashtra';
-    const stateKeywords: { [key: string]: IndianState } = {
-      'rajasthan': 'Rajasthan',
-      'west bengal': 'West Bengal',
-      'bengal': 'West Bengal',
-      'maharashtra': 'Maharashtra',
-      'pune': 'Maharashtra',
-      'nashik': 'Maharashtra',
-      'mumbai': 'Maharashtra',
-      'uttar pradesh': 'Uttar Pradesh',
-      'lucknow': 'Uttar Pradesh',
-      'bihar': 'Bihar',
-      'patna': 'Bihar',
-      'gujarat': 'Gujarat',
-      'karnataka': 'Karnataka',
-      'tamil nadu': 'Tamil Nadu',
-      'delhi': 'Delhi',
-      'punjab': 'Punjab',
-      'haryana': 'Haryana',
-      'kerala': 'Kerala',
-      'madhya pradesh': 'Madhya Pradesh',
-      'odisha': 'Odisha',
-    };
-
-    for (const [kw, st] of Object.entries(stateKeywords)) {
-      if (lowerCombined.includes(kw)) {
-        state = st;
-        break;
-      }
+    if (lowerCombined.includes('west bengal') || lowerCombined.includes('bengal') || lowerCombined.includes('kolkata')) {
+      state = 'West Bengal';
+    } else if (lowerCombined.includes('rajasthan') || lowerCombined.includes('jaipur')) {
+      state = 'Rajasthan';
+    } else if (lowerCombined.includes('maharashtra') || lowerCombined.includes('pune') || lowerCombined.includes('mumbai') || lowerCombined.includes('nashik')) {
+      state = 'Maharashtra';
+    } else if (lowerCombined.includes('uttar pradesh') || lowerCombined.includes('lucknow')) {
+      state = 'Uttar Pradesh';
+    } else if (lowerCombined.includes('bihar') || lowerCombined.includes('patna')) {
+      state = 'Bihar';
     }
 
-    // 3. Generic Universal Income Extraction
+    // 3. Generic Universal Income Extraction (Must be >= 10,000 INR to filter out random single digits)
     let income = 250000;
-    const incMatch =
-      combined.match(/(?:Applicant's Income|Assessed Annual Income|Annual Income|Gross Income|Income|आय|उत्पन्न)[^Rs₹\d]{0,40}(?:Rs\.?|INR|₹)?\s*([\d,]+)/i) ||
-      combined.match(/(?:Rs\.?|INR|₹)\s*([\d,]+)(?:\/-|\s*per|\s*annual)?/i) ||
-      combined.match(/(\d{5,6})/);
-
-    if (incMatch) {
-      const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ''), 10);
-      if (!isNaN(parsed) && parsed > 0 && parsed <= 5000000) {
-        income = parsed;
+    const incMatches = combined.match(/(?:Rs\.?|INR|₹)?\s*([\d,]{5,8})(?:\/-|\s*per|\s*annual)?/gi);
+    if (incMatches) {
+      for (const matchStr of incMatches) {
+        const parsed = parseInt(matchStr.replace(/[^\d]/g, ''), 10);
+        if (!isNaN(parsed) && parsed >= 10000 && parsed <= 5000000) {
+          income = parsed;
+          break;
+        }
       }
     }
 
@@ -397,7 +383,7 @@ export default function App() {
       documentType: docType,
       detectedLanguage: 'English / Devanagari Regional',
       ocrConfidence: 97.2,
-      extractedRawText: text.substring(0, 1000) || `Uploaded Document: ${fileName}`,
+      extractedRawText: extractedText.substring(0, 1000) || `Uploaded Document: ${fileName}`,
       citizenProfile: profile,
       keyEntities: [
         { label: 'Beneficiary Name', value: name, confidence: 99 },

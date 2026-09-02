@@ -2960,28 +2960,35 @@ app.post("/api/recalculate", (req, res) => {
     res.status(500).json({ error: "Failed to recalculate scheme eligibility" });
   }
 });
-function parseUploadedDocumentText(rawTextOrBase64, mimeType, filename = "", msgBody = "") {
-  let text = "";
+function extractTextFromBuffer(rawTextOrBase64) {
   try {
     const cleanBase64 = rawTextOrBase64.replace(/^data:[^;]+;base64,/, "");
     const buffer = Buffer.from(cleanBase64, "base64");
-    text = buffer.toString("utf-8");
+    const rawStr = buffer.toString("binary");
+    const textMatches = rawStr.match(/\(([^()]{2,100})\)/g);
+    if (textMatches && textMatches.length > 5) {
+      return textMatches.map((m) => m.replace(/[()]/g, "")).join(" ");
+    }
+    return rawStr.replace(/[^\x20-\x7E\n\r]/g, " ");
   } catch (e) {
-    text = rawTextOrBase64;
+    return rawTextOrBase64;
   }
-  const combined = (text + " " + rawTextOrBase64 + " " + filename + " " + msgBody).replace(/\s+/g, " ");
+}
+function parseUploadedDocumentText(rawTextOrBase64, mimeType, filename = "", msgBody = "") {
+  const extractedText = extractTextFromBuffer(rawTextOrBase64);
+  const combined = (extractedText + " " + filename + " " + msgBody).replace(/\s+/g, " ");
   const lowerCombined = combined.toLowerCase();
   let name = "";
   const namePatternMatch = combined.match(/(?:1\.\s*)?(?:Name of (?:the )?Applicant|Beneficiary Name|Applicant Name|Shri\/Smt|Name|नांव|नाव|नाम)\s*[:|-]?\s*([A-Za-z\s]{3,35})/i) || combined.match(/Shri\/Smt\.?\s+([A-Za-z\s]{3,35})/i) || combined.match(/Applicant\s*[:|-]?\s*([A-Za-z\s]{3,35})/i);
   if (namePatternMatch && namePatternMatch[1]?.trim()) {
     const candidate = namePatternMatch[1].trim();
-    if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE|REVENUE|OFFICE|TAHSILDAR/i.test(candidate)) {
+    if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE|REVENUE|OFFICE|TAHSILDAR|DIVISION/i.test(candidate)) {
       name = candidate.toUpperCase();
     }
   }
   if (!name && filename) {
-    const cleanFile = filename.replace(/^certificate_?/i, "").replace(/income_?/i, "").replace(/cert_?/i, "").replace(/_\d+/g, "").replace(/\.(pdf|png|jpg|jpeg)/i, "").replace(/[^a-zA-Z\s]/g, " ").trim();
-    if (cleanFile.length >= 3 && !/doc|image|file|scan|upload|pdf|png|jpg|img|\d+/i.test(cleanFile)) {
+    const cleanFile = filename.replace(/\.(pdf|png|jpg|jpeg)/i, "").replace(/^(certificate|income_certificate|income_cert|cert)[_-]?/i, "").replace(/[_-]\d+$/g, "").replace(/[^a-zA-Z\s]/g, " ").replace(/\s+/g, " ").trim();
+    if (cleanFile.length >= 2 && !/^(doc|document|image|file|scan|upload|pdf|png|jpg|img)$/i.test(cleanFile)) {
       name = cleanFile.toUpperCase();
     }
   }
@@ -2989,40 +2996,26 @@ function parseUploadedDocumentText(rawTextOrBase64, mimeType, filename = "", msg
     name = "CITIZEN APPLICANT";
   }
   let state = "Maharashtra";
-  const stateKeywords = {
-    "rajasthan": "Rajasthan",
-    "west bengal": "West Bengal",
-    "bengal": "West Bengal",
-    "maharashtra": "Maharashtra",
-    "pune": "Maharashtra",
-    "nashik": "Maharashtra",
-    "mumbai": "Maharashtra",
-    "uttar pradesh": "Uttar Pradesh",
-    "lucknow": "Uttar Pradesh",
-    "bihar": "Bihar",
-    "patna": "Bihar",
-    "gujarat": "Gujarat",
-    "karnataka": "Karnataka",
-    "tamil nadu": "Tamil Nadu",
-    "delhi": "Delhi",
-    "punjab": "Punjab",
-    "haryana": "Haryana",
-    "kerala": "Kerala",
-    "madhya pradesh": "Madhya Pradesh",
-    "odisha": "Odisha"
-  };
-  for (const [kw, st] of Object.entries(stateKeywords)) {
-    if (lowerCombined.includes(kw)) {
-      state = st;
-      break;
-    }
+  if (lowerCombined.includes("west bengal") || lowerCombined.includes("bengal") || lowerCombined.includes("kolkata")) {
+    state = "West Bengal";
+  } else if (lowerCombined.includes("rajasthan") || lowerCombined.includes("jaipur")) {
+    state = "Rajasthan";
+  } else if (lowerCombined.includes("maharashtra") || lowerCombined.includes("pune") || lowerCombined.includes("mumbai") || lowerCombined.includes("nashik")) {
+    state = "Maharashtra";
+  } else if (lowerCombined.includes("uttar pradesh") || lowerCombined.includes("lucknow")) {
+    state = "Uttar Pradesh";
+  } else if (lowerCombined.includes("bihar") || lowerCombined.includes("patna")) {
+    state = "Bihar";
   }
   let income = 25e4;
-  const incMatch = combined.match(/(?:Applicant's Income|Assessed Annual Income|Annual Income|Gross Income|Income|आय|उत्पन्न)[^Rs₹\d]{0,40}(?:Rs\.?|INR|₹)?\s*([\d,]+)/i) || combined.match(/(?:Rs\.?|INR|₹)\s*([\d,]+)(?:\/-|\s*per|\s*annual)?/i) || combined.match(/(\d{5,6})/);
-  if (incMatch) {
-    const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ""), 10);
-    if (!isNaN(parsed) && parsed > 0 && parsed <= 5e6) {
-      income = parsed;
+  const incMatches = combined.match(/(?:Rs\.?|INR|₹)?\s*([\d,]{5,8})(?:\/-|\s*per|\s*annual)?/gi);
+  if (incMatches) {
+    for (const matchStr of incMatches) {
+      const parsed = parseInt(matchStr.replace(/[^\d]/g, ""), 10);
+      if (!isNaN(parsed) && parsed >= 1e4 && parsed <= 5e6) {
+        income = parsed;
+        break;
+      }
     }
   }
   let district = "Central District";
@@ -3034,10 +3027,10 @@ function parseUploadedDocumentText(rawTextOrBase64, mimeType, filename = "", msg
     }
   }
   let docType = "Tahsildar Income Certificate";
-  if (/ration/i.test(combined)) docType = "Ration Card (NFSA/BPL/AAY)";
-  else if (/7\/12|satbara/i.test(combined)) docType = "7/12 Land Record (Satbara / RoR / Khasra)";
-  else if (/caste/i.test(combined)) docType = "Caste / Community Certificate";
-  else if (/disability|udid/i.test(combined)) docType = "Divyangjan UDID / Disability Certificate";
+  if (/ration/i.test(lowerCombined)) docType = "Ration Card (NFSA/BPL/AAY)";
+  else if (/7\/12|satbara/i.test(lowerCombined)) docType = "7/12 Land Record (Satbara / RoR / Khasra)";
+  else if (/caste/i.test(lowerCombined)) docType = "Caste / Community Certificate";
+  else if (/disability|udid/i.test(lowerCombined)) docType = "Divyangjan UDID / Disability Certificate";
   const profile = {
     name,
     age: 28,
@@ -3070,7 +3063,7 @@ function parseUploadedDocumentText(rawTextOrBase64, mimeType, filename = "", msg
       { label: "District Jurisdiction", value: `${district}, ${state}`, confidence: 97 },
       { label: "Identified Document", value: docType, confidence: 99 }
     ],
-    extractedRawText: text.substring(0, 1e3) || "Government Certificate Document"
+    extractedRawText: extractedText.substring(0, 1e3) || `Uploaded Document: ${filename}`
   };
 }
 app.post("/api/scan-document", async (req, res) => {
