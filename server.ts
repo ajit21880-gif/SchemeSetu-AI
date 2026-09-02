@@ -292,7 +292,7 @@ Return strictly JSON conforming to the schema.`;
 
     const geminiResponse: any = await Promise.race([
       ai.models.generateContent({
-        model: 'gemini-3.7-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
         contents: {
           parts: [
             {

@@ -24,34 +24,57 @@ async function processDocumentWithGeminiOrOCR(base64Data: string, mimeType: stri
       const ai = new GoogleGenAI({ apiKey });
       const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, '');
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                inlineData: {
-                  mimeType: mimeType.includes('pdf') ? 'application/pdf' : 'image/jpeg',
-                  data: cleanBase64,
+      let response: any;
+      try {
+        response = await ai.models.generateContent({
+          model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: mimeType.includes('pdf') ? 'application/pdf' : 'image/jpeg',
+                    data: cleanBase64,
+                  },
                 },
-              },
-              {
-                text: `Extract document details for government scheme eligibility. Return JSON:
+                {
+                  text: `Extract document details for government scheme eligibility. Return JSON:
 {
   "name": "Applicant Full Name",
   "age": 28,
   "gender": "female" or "male",
-  "state": "West Bengal" or "Maharashtra" or state name,
+  "state": "West Bengal" or "Maharashtra" or "Rajasthan" or state name,
   "district": "District Name",
   "annualIncomeINR": 150000,
   "documentType": "Tahsildar Income Certificate"
 }`
-              }
-            ]
-          }
-        ]
-      });
+                }
+              ]
+            }
+          ]
+        });
+      } catch (err) {
+        response = await ai.models.generateContent({
+          model: 'gemini-1.5-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: mimeType.includes('pdf') ? 'application/pdf' : 'image/jpeg',
+                    data: cleanBase64,
+                  },
+                },
+                {
+                  text: `Extract document details for government scheme eligibility. Return JSON format.`
+                }
+              ]
+            }
+          ]
+        });
+      }
 
       const text = response.text || '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);
