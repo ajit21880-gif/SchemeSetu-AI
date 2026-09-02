@@ -403,23 +403,24 @@ export default function App() {
     };
   }, []);
 
-  // Scan file upload handler (with fast 1.5s max timeout)
+  // Scan file upload handler (with 15s timeout for server OCR)
   const handleScanFile = async (file: File) => {
     setIsScanning(true);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout for real server Vision OCR
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
       const reader = new FileReader();
       reader.onload = async () => {
+        const base64Data = reader.result as string;
         try {
-          const base64Data = reader.result as string;
           const res = await fetch('/api/scan-document', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               imageBase64: base64Data,
-              mimeType: file.type || 'image/jpeg',
+              mimeType: file.type || 'application/pdf',
+              filename: file.name,
               preferredLanguage: currentLanguage,
             }),
             signal: controller.signal,
@@ -433,7 +434,7 @@ export default function App() {
           setSelectedState(data.citizenProfile.state || 'All India');
         } catch (err) {
           console.warn('File scan network timeout or error, using instant smart document parser:', err);
-          const fallbackData = createDynamicUploadedResponse(file.name, file.name);
+          const fallbackData = createDynamicUploadedResponse(base64Data, file.name);
           setScanResponse(fallbackData);
           setSelectedState(fallbackData.citizenProfile.state || 'All India');
         } finally {
