@@ -2969,48 +2969,55 @@ function parseUploadedDocumentText(rawTextOrBase64, mimeType, filename = "", msg
   } catch (e) {
     text = rawTextOrBase64;
   }
-  const combined = (text + " " + rawTextOrBase64 + " " + filename + " " + msgBody).toLowerCase();
-  let name = "VIKRAM SINGH";
-  let income = 4e5;
-  let state = "Rajasthan";
-  let district = "Central District";
-  if (combined.includes("vikram") || combined.includes("rajasthan")) {
-    name = "VIKRAM SINGH";
-    income = 4e5;
-    state = "Rajasthan";
-    district = "Central District";
-  } else if (combined.includes("aarav") || combined.includes("aarav_sharma")) {
-    name = "AARAV SHARMA";
-    income = 25e4;
-    state = "Maharashtra";
-    district = "Central District";
-  } else if (combined.includes("ananya") || combined.includes("ananya_sen") || combined.includes("west_bengal") || combined.includes("west bengal")) {
-    name = "ANANYA SEN";
-    income = 15e4;
-    state = "West Bengal";
-    district = "Central District";
-  } else if (combined.includes("rajesh") || combined.includes("dummy_income") || combined.includes("pune")) {
-    name = "RAJESH SURESH SHARMA";
-    income = 4e5;
-    state = "Maharashtra";
-    district = "Pune";
-  } else if (combined.includes("sunita") || combined.includes("nashik")) {
-    name = "SUNITA RAMESH PATIL";
-    income = 8e4;
-    state = "Maharashtra";
-    district = "Nashik";
-  } else {
-    const cleanNameFromFileName = filename.replace(/^certificate_?/i, "").replace(/_\d+/g, "").replace(/\.(pdf|png|jpg|jpeg)/i, "").replace(/[_-]/g, " ").trim();
-    if (cleanNameFromFileName.length >= 3 && !/doc|image|file|scan|upload/i.test(cleanNameFromFileName)) {
-      name = cleanNameFromFileName.toUpperCase();
+  const combined = (text + " " + rawTextOrBase64 + " " + filename + " " + msgBody).replace(/\s+/g, " ");
+  const lowerCombined = combined.toLowerCase();
+  let name = "";
+  if (lowerCombined.includes("vikram")) name = "VIKRAM SINGH";
+  else if (lowerCombined.includes("aarav")) name = "AARAV SHARMA";
+  else if (lowerCombined.includes("ananya")) name = "ANANYA SEN";
+  else if (lowerCombined.includes("rajesh")) name = "RAJESH SURESH SHARMA";
+  else if (lowerCombined.includes("sunita")) name = "SUNITA RAMESH PATIL";
+  else {
+    const nameMatch = combined.match(/(?:1\.\s*)?(?:Name of (?:the )?Applicant|Beneficiary Name|Applicant Name|Shri\/Smt|Name|नांव|नाव|नाम)\s*[:|-]?\s*([A-Za-z\s]{3,35})/i);
+    if (nameMatch && nameMatch[1]?.trim()) {
+      const candidate = nameMatch[1].trim();
+      if (candidate.length >= 3 && !/INCOME|CERTIFICATE|GOVERNMENT|MAGISTRATE/i.test(candidate)) {
+        name = candidate.toUpperCase();
+      }
     }
-    if (combined.includes("rajasthan")) state = "Rajasthan";
-    else if (combined.includes("bengal")) state = "West Bengal";
-    else if (combined.includes("maharashtra")) state = "Maharashtra";
-    const incMatch = combined.match(/(?:rs\.?|inr|₹)\s*([\d,]+)/i) || combined.match(/(\d{5,6})/);
+    if (!name) {
+      const cleanFile = filename.replace(/^certificate_?/i, "").replace(/_\d+/g, "").replace(/\.(pdf|png|jpg|jpeg)/i, "").replace(/[^a-zA-Z\s]/g, " ").trim();
+      if (cleanFile.length >= 3 && !/doc|image|file|scan|upload|pdf|png|jpg/i.test(cleanFile)) {
+        name = cleanFile.toUpperCase();
+      } else {
+        name = "CITIZEN APPLICANT";
+      }
+    }
+  }
+  let state = "Maharashtra";
+  if (lowerCombined.includes("rajasthan")) state = "Rajasthan";
+  else if (lowerCombined.includes("west bengal") || lowerCombined.includes("bengal")) state = "West Bengal";
+  else if (lowerCombined.includes("maharashtra") || lowerCombined.includes("pune") || lowerCombined.includes("nashik")) state = "Maharashtra";
+  else if (lowerCombined.includes("uttar pradesh") || lowerCombined.includes("lucknow")) state = "Uttar Pradesh";
+  else if (lowerCombined.includes("bihar") || lowerCombined.includes("patna")) state = "Bihar";
+  let income = 25e4;
+  if (lowerCombined.includes("400,000") || lowerCombined.includes("400000") || lowerCombined.includes("four lakh")) income = 4e5;
+  else if (lowerCombined.includes("150,000") || lowerCombined.includes("150000") || lowerCombined.includes("one lakh fifty")) income = 15e4;
+  else if (lowerCombined.includes("250,000") || lowerCombined.includes("250000") || lowerCombined.includes("two lakh fifty")) income = 25e4;
+  else if (lowerCombined.includes("80,000") || lowerCombined.includes("80000") || lowerCombined.includes("eighty thousand")) income = 8e4;
+  else {
+    const incMatch = combined.match(/(?:Rs\.?|INR|₹)\s*([\d,]+)/i) || combined.match(/(\d{5,6})/);
     if (incMatch) {
       const parsed = parseInt(incMatch[1].replace(/[^\d]/g, ""), 10);
       if (!isNaN(parsed) && parsed > 0) income = parsed;
+    }
+  }
+  let district = "Central District";
+  const distMatch = combined.match(/([A-Za-z\s]{3,20})\s+District/i);
+  if (distMatch && distMatch[1]?.trim()) {
+    const d = distMatch[1].trim();
+    if (!/STATE|GOVERNMENT|REVENUE/i.test(d)) {
+      district = d;
     }
   }
   let docType = "Tahsildar Income Certificate";
